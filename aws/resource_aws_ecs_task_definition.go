@@ -18,6 +18,19 @@ func resourceAwsEcsTaskDefinition() *schema.Resource {
 		Read:   resourceAwsEcsTaskDefinitionRead,
 		Delete: resourceAwsEcsTaskDefinitionDelete,
 
+		SchemaVersion: 1,
+		MigrateState: func(v int, is *terraform.InstanceState, meta interface{}) (*terraform.InstanceState, error) {
+			conn := meta.(*AWSClient).ecsconn
+
+			switch v {
+			case 0:
+				log.Println("[INFO] Found AWS DynamoDB Table State v0; migrating to v1")
+				return migrateEcsTaskDefinitionStateV0toV1(is, conn)
+			default:
+				return is, fmt.Errorf("Unexpected schema version: %d", v)
+			}
+		},
+
 		Schema: map[string]*schema.Schema{
 			"arn": {
 				Type:     schema.TypeString,
@@ -36,9 +49,13 @@ func resourceAwsEcsTaskDefinition() *schema.Resource {
 			},
 
 			"container_definitions": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ForceNew:     true,
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+				StateFunc: func(v interface{}) string {
+					json, _ := normalizeJsonString(v)
+					return json
+				},
 				ValidateFunc: validateAwsEcsTaskDefinitionContainerDefinitions,
 			},
 
